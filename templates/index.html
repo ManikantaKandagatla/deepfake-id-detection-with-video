@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepFake ID Detection</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .drop-zone {
+            border: 2px dashed #4a5568;
+            transition: all 0.3s ease;
+        }
+        .drop-zone:hover {
+            border-color: #4299e1;
+            background-color: #ebf8ff;
+        }
+        .result-card {
+            transition: all 0.3s ease;
+        }
+        .result-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .loading {
+            display: none;
+        }
+        .loading.active {
+            display: block;
+        }
+        .confidence-bar {
+            height: 8px;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        .confidence-bar.real {
+            background-color: #10B981;
+        }
+        .confidence-bar.fake {
+            background-color: #EF4444;
+        }
+        .confidence-badge {
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        .confidence-badge.high {
+            background-color: #10B981;
+            color: white;
+        }
+        .confidence-badge.medium {
+            background-color: #F59E0B;
+            color: white;
+        }
+        .confidence-badge.low {
+            background-color: #EF4444;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8">DeepFake ID Document Detection</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Single Image Analysis Section -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Single Image Analysis</h2>
+                <form id="uploadForm" class="space-y-4">
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                        <input type="file" id="imageInput" accept="image/*" class="hidden">
+                        <label for="imageInput" class="cursor-pointer">
+                            <div class="space-y-2">
+                                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                                <div class="text-sm text-gray-600">
+                                    <span class="font-medium">Click to upload</span> or drag and drop
+                                </div>
+                                <p class="text-xs text-gray-500">PNG, JPG, JPEG up to 10MB</p>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <div id="preview" class="hidden">
+                        <img id="imagePreview" class="max-w-full h-auto rounded-lg" alt="Preview">
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200">
+                        Analyze Image
+                    </button>
+                </form>
+
+                <div id="result" class="hidden mt-6 p-4 rounded-lg">
+                    <div class="flex items-center justify-between">
+                        <div class="text-lg font-semibold" id="resultText"></div>
+                        <div class="text-sm text-gray-600" id="confidenceText"></div>
+                    </div>
+                    <div class="mt-2 text-sm text-gray-600" id="messageText"></div>
+                </div>
+
+                <div id="loading" class="hidden mt-6 text-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p class="mt-2 text-gray-600">Analyzing image...</p>
+                </div>
+
+                <div id="error" class="hidden mt-6 p-4 bg-red-100 text-red-700 rounded-lg"></div>
+            </div>
+
+            <!-- Video Analysis Section -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Video Analysis</h2>
+                <form id="videoUploadForm" class="space-y-4">
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                        <input type="file" id="videoInput" accept="video/*" class="hidden">
+                        <label for="videoInput" class="cursor-pointer">
+                            <div class="space-y-2">
+                                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                                <div class="text-sm text-gray-600">
+                                    <span class="font-medium">Click to upload</span> or drag and drop
+                                </div>
+                                <p class="text-xs text-gray-500">MP4, AVI, MOV up to 100MB</p>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <div id="videoPreview" class="hidden">
+                        <video id="videoPreviewPlayer" class="max-w-full h-auto rounded-lg" controls></video>
+                    </div>
+
+                    <button type="submit" class="w-full bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-200">
+                        Analyze Video
+                    </button>
+                </form>
+
+                <div id="videoResult" class="hidden mt-6 p-4 rounded-lg">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="text-lg font-semibold" id="videoResultText"></div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-green-50 p-4 rounded-lg">
+                                <div class="text-sm font-medium text-green-800">Real Confidence</div>
+                                <div class="text-2xl font-bold text-green-600" id="realConfidenceText"></div>
+                                <div class="w-full bg-green-200 rounded-full h-2.5 mt-2">
+                                    <div class="bg-green-600 h-2.5 rounded-full" id="realConfidenceBar"></div>
+                                </div>
+                            </div>
+                            <div class="bg-red-50 p-4 rounded-lg">
+                                <div class="text-sm font-medium text-red-800">Fake Confidence</div>
+                                <div class="text-2xl font-bold text-red-600" id="fakeConfidenceText"></div>
+                                <div class="w-full bg-red-200 rounded-full h-2.5 mt-2">
+                                    <div class="bg-red-600 h-2.5 rounded-full" id="fakeConfidenceBar"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="space-y-2 text-sm text-gray-600">
+                            <div class="flex justify-between">
+                                <span>Frames Analyzed:</span>
+                                <span id="totalFramesText"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Fake Frames:</span>
+                                <span id="fakeFramesText"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="videoLoading" class="hidden mt-6 text-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+                    <p class="mt-2 text-gray-600">Analyzing video...</p>
+                    <p class="text-sm text-gray-500">This may take a few minutes depending on the video length</p>
+                </div>
+
+                <div id="videoError" class="hidden mt-6 p-4 bg-red-100 text-red-700 rounded-lg"></div>
+            </div>
+
+            <!-- Batch Analysis Section -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Batch Analysis</h2>
+                <form id="batchUploadForm" class="space-y-4">
+                    <div class="space-y-2">
+                        <label for="folderPath" class="block text-sm font-medium text-gray-700">Folder Path</label>
+                        <div class="flex space-x-2">
+                            <input type="text" id="folderPath" name="folderPath" 
+                                   class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                   placeholder="Enter the path to the folder containing images">
+                            <button type="button" id="browseButton" 
+                                    class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">
+                                Browse
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500">Enter the path to a folder containing images (PNG, JPG, JPEG)</p>
+                    </div>
+
+                    <div id="folderPreview" class="hidden">
+                        <div class="text-sm text-gray-600">
+                            <p>Selected folder: <span id="selectedFolderPath" class="font-medium"></span></p>
+                            <p>Number of images found: <span id="imageCount" class="font-medium">0</span></p>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition duration-200">
+                        Analyze Images
+                    </button>
+                </form>
+
+                <div id="batchResult" class="hidden mt-6 p-4 rounded-lg">
+                    <div class="text-lg font-semibold mb-2" id="batchResultText"></div>
+                    <div class="text-sm text-gray-600" id="batchMessageText"></div>
+                    <button id="downloadResults" class="mt-4 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200">
+                        Download Results
+                    </button>
+                </div>
+
+                <div id="batchLoading" class="hidden mt-6 text-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p class="mt-2 text-gray-600">Analyzing images...</p>
+                    <p class="text-sm text-gray-500" id="progressText"></p>
+                </div>
+
+                <div id="batchError" class="hidden mt-6 p-4 bg-red-100 text-red-700 rounded-lg"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Single Image Analysis
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = document.getElementById('imageInput').files[0];
+            if (!file) {
+                showError('Please select an image first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            hideAllResults();
+            showLoading();
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showResult(result);
+                } else {
+                    showError(result.error || 'An error occurred');
+                }
+            } catch (error) {
+                showError('Failed to analyze image');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // Image preview for single image
+        document.getElementById('imageInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('imagePreview').src = e.target.result;
+                    document.getElementById('preview').classList.remove('hidden');
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Video Analysis
+        document.getElementById('videoUploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = document.getElementById('videoInput').files[0];
+            if (!file) {
+                showVideoError('Please select a video first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            hideVideoResults();
+            showVideoLoading();
+
+            try {
+                const response = await fetch('/analyze-video', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showVideoResult(result);
+                } else {
+                    showVideoError(result.error || 'An error occurred');
+                }
+            } catch (error) {
+                showVideoError('Failed to analyze video');
+            } finally {
+                hideVideoLoading();
+            }
+        });
+
+        // Video preview
+        document.getElementById('videoInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const videoUrl = URL.createObjectURL(file);
+                const videoPlayer = document.getElementById('videoPreviewPlayer');
+                videoPlayer.src = videoUrl;
+                document.getElementById('videoPreview').classList.remove('hidden');
+            }
+        });
+
+        // Batch Analysis
+        document.getElementById('batchUploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const folderPath = document.getElementById('folderPath').value.trim();
+            if (!folderPath) {
+                showBatchError('Please enter a folder path');
+                return;
+            }
+
+            hideAllBatchResults();
+            showBatchLoading();
+
+            try {
+                const response = await fetch('/analyze-folder', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ folder_path: folderPath })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showBatchResult(result);
+                } else {
+                    showBatchError(result.error || 'An error occurred');
+                }
+            } catch (error) {
+                showBatchError('Failed to analyze images');
+            } finally {
+                hideBatchLoading();
+            }
+        });
+
+        // Browse button functionality
+        document.getElementById('browseButton').addEventListener('click', () => {
+            // Note: This is a simplified example. In a real application, you would need
+            // to implement a proper file/folder picker dialog based on your requirements
+            const folderPath = prompt('Please enter the path to the folder containing images:');
+            if (folderPath) {
+                document.getElementById('folderPath').value = folderPath;
+                updateFolderPreview(folderPath);
+            }
+        });
+
+        // Update folder preview
+        function updateFolderPreview(folderPath) {
+            const previewDiv = document.getElementById('folderPreview');
+            const selectedFolderPath = document.getElementById('selectedFolderPath');
+            const imageCount = document.getElementById('imageCount');
+
+            selectedFolderPath.textContent = folderPath;
+            // In a real application, you would need to make an API call to get the actual image count
+            imageCount.textContent = '0';
+            previewDiv.classList.remove('hidden');
+        }
+
+        // Download results
+        document.getElementById('downloadResults').addEventListener('click', () => {
+            const csvFile = document.getElementById('downloadResults').dataset.csvFile;
+            if (csvFile) {
+                window.location.href = `/download-results/${csvFile}`;
+            }
+        });
+
+        function showResult(result) {
+            const resultDiv = document.getElementById('result');
+            const resultText = document.getElementById('resultText');
+            const confidenceText = document.getElementById('confidenceText');
+            const messageText = document.getElementById('messageText');
+
+            resultDiv.classList.remove('hidden');
+            
+            if (result.is_real) {
+                resultDiv.classList.remove('bg-red-100');
+                resultDiv.classList.add('bg-green-100');
+                resultText.textContent = 'Real Document';
+            } else {
+                resultDiv.classList.remove('bg-green-100');
+                resultDiv.classList.add('bg-red-100');
+                resultText.textContent = 'AI-Generated Document';
+            }
+
+            confidenceText.textContent = `Confidence: ${result.confidence.toFixed(1)}%`;
+            messageText.textContent = result.message;
+        }
+
+        function showBatchResult(result) {
+            const resultDiv = document.getElementById('batchResult');
+            const resultText = document.getElementById('batchResultText');
+            const messageText = document.getElementById('batchMessageText');
+            const downloadButton = document.getElementById('downloadResults');
+
+            resultDiv.classList.remove('hidden');
+            resultText.textContent = 'Analysis Completed';
+            messageText.textContent = result.message;
+            downloadButton.dataset.csvFile = result.csv_file;
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+
+        function showBatchError(message) {
+            const errorDiv = document.getElementById('batchError');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+
+        function showLoading() {
+            document.getElementById('loading').classList.remove('hidden');
+        }
+
+        function showBatchLoading() {
+            document.getElementById('batchLoading').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.add('hidden');
+        }
+
+        function hideBatchLoading() {
+            document.getElementById('batchLoading').classList.add('hidden');
+        }
+
+        function hideAllResults() {
+            document.getElementById('result').classList.add('hidden');
+            document.getElementById('error').classList.add('hidden');
+        }
+
+        function hideAllBatchResults() {
+            document.getElementById('batchResult').classList.add('hidden');
+            document.getElementById('batchError').classList.add('hidden');
+        }
+
+        function showVideoResult(result) {
+            const videoResult = document.getElementById('videoResult');
+            const resultText = document.getElementById('videoResultText');
+            const realConfidenceText = document.getElementById('realConfidenceText');
+            const fakeConfidenceText = document.getElementById('fakeConfidenceText');
+            const realConfidenceBar = document.getElementById('realConfidenceBar');
+            const fakeConfidenceBar = document.getElementById('fakeConfidenceBar');
+            const totalFramesText = document.getElementById('totalFramesText');
+            const fakeFramesText = document.getElementById('fakeFramesText');
+
+            resultText.textContent = result.is_real ? 'Real Video' : 'Fake Video';
+            resultText.className = result.is_real ? 'text-green-600' : 'text-red-600';
+            
+            realConfidenceText.textContent = `${result.real_confidence.toFixed(2)}%`;
+            fakeConfidenceText.textContent = `${result.fake_confidence.toFixed(2)}%`;
+            
+            realConfidenceBar.style.width = `${result.real_confidence}%`;
+            fakeConfidenceBar.style.width = `${result.fake_confidence}%`;
+            
+            totalFramesText.textContent = result.total_frames_analyzed;
+            fakeFramesText.textContent = result.fake_frames;
+
+            videoResult.classList.remove('hidden');
+        }
+
+        function hideVideoResults() {
+            document.getElementById('videoResult').classList.add('hidden');
+            document.getElementById('videoError').classList.add('hidden');
+        }
+
+        function showVideoLoading() {
+            document.getElementById('videoLoading').classList.remove('hidden');
+        }
+
+        function hideVideoLoading() {
+            document.getElementById('videoLoading').classList.add('hidden');
+        }
+
+        function showVideoError(message) {
+            const errorDiv = document.getElementById('videoError');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html> 
